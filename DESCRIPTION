@@ -1,0 +1,23 @@
+Package: surveySoFR
+Type: Package
+Title: surveySoFR: A package for estimation and inference of scalar on function regression models
+Version: 0.1.0
+Author: Andrew Leroux, Erjia Cui, Lucia Tabacu, Ekaterina Smirnova
+Maintainer: Andrew Leroux <andrew.leroux@cuanschutz.edu>
+Description: This package facilitates estimation and inference for scalar on function regression using penalized regression splines. Estimation is performed using the mgcv package. The primary functionality of this package is contained in the function doBRR() which implements balanced repeated resampling for estimating regression coefficients. 
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.2
+Imports: 
+    mgcv,
+    survey
+Suggests: 
+    rmarkdown,
+    knitr,
+    refund,
+    devtools,
+    ggplot2,
+    tidyverse,
+    fields
+VignetteBuilder: knitr
