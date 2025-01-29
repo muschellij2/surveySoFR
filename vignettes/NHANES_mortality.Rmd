@@ -96,7 +96,7 @@ rm(Flags, Covariate, Mortality)
 ```
 
 
-```{r}
+```{r creating_df_fit, cache=TRUE}
 ## Calculate PA profiles features
 NJ  <- nrow(PAXINTEN)
 uid <- unique(PAXINTEN$SEQN)
@@ -156,7 +156,7 @@ We next compare the inference results using three approaches described in the pa
 
 ### Fisher Information Based Standard Errors
 
-```{r, warning=FALSE, message=FALSE}
+```{r fit_gam, warning=FALSE, message=FALSE, cache = TRUE}
 ## create dataframe used for extracting predicted coefficient
 ns_pred <- 1000
 sind_pred <- seq(0, 1, len = ns_pred)
@@ -193,7 +193,7 @@ est_uw <- predict(fit_SOFR_uw,
 
 ### BRR
 
-```{r, warning=FALSE, message=FALSE}
+```{r doBRR, warning=FALSE, message=FALSE}
 ## create a variable which represents the combination of strata and psu
 df_fit$STRATA_PSU <- paste0(df_fit$SDMVSTRA, "_", df_fit$SDMVPSU)
 
@@ -232,7 +232,7 @@ se_BRR_gamma <- sqrt(diag(vgamma_s))
 
 ### Survey Weighted Bootstrap
 
-```{r, warning=FALSE, message=FALSE}
+```{r bootstrap, warning=FALSE, message=FALSE}
 ## get weighted bootstrap SEs
 nboot <- 100
 coef_mat_boot <- matrix(NA, nboot, ns_pred)
@@ -265,7 +265,7 @@ se_boot_gamma <- apply(coef_mat_boot, 2, sd, na.rm = TRUE)
 
 After obtaining the standard error estimates using each method, we visualize the results on a single plot. The plot is shown as Figure 5 in the manuscript.
 
-```{r}
+```{r plot_resutls}
 ## point estimates of the functional coefficient and various SE estimates,
 ## combine into a dataframe in long format for plotting via ggplot
 df_plt <-
