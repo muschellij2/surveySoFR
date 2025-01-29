@@ -18,9 +18,9 @@ doBRR(
 \arguments{
 \item{df}{data frame containing all variables used in initial fitting, plus survey variables (strata, PSU, weights)}
 
-\item{fit}{Initial fit on the full data, pass the formula into mgcv::gam}
+\item{fit}{Initial fit on the full data, pass the formula into [mgcv::gam()]}
 
-\item{nbrr}{Number of BRR samples to}
+\item{nbrr}{Number of BRR samples}
 
 \item{us}{Unique strata identifiers (corresponds to the unique levels of the variable specified by the strata argument)}
 

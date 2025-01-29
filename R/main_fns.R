@@ -1,7 +1,3 @@
-#' @importFrom utils txtProgressBar setTxtProgressBar
-#' @importFrom stats coef
-NULL
-
 
 #' Function for doing brr
 #' @param df data frame containing all variables used in initial fitting, plus survey variables (strata, PSU, weights)
@@ -12,6 +8,7 @@ NULL
 #' @param strata Character vector of length 1 indicating the variable name for the strata identifier in the data frame used for model fitting
 #' @param PSU Character vector of length 1 indicating the variable name for the PSU identifier in the data frame used for model fitting
 #' @param weights Character vector of length 1 indicating the variable name for individuals' survey weights in the data frame used for model fitting
+#' @export
 doBRR <- function(df,
                   fit,
                   nbrr,
@@ -40,6 +37,9 @@ doBRR <- function(df,
     pb <- utils::txtProgressBar(min = 0,
                                 max = nbrr,
                                 style = 3)
+    on.exit({
+        close(pb)
+    }, add = TRUE)
     for (b in 1:nbrr) {
         # subset to the current PSU-strata sample
         data_brr <- df[df$strata_PSU %in% H_brr[, b], ]
@@ -58,5 +58,6 @@ doBRR <- function(df,
         coef_brr[b, ] <- stats::coef(fit_brr)
         utils::setTxtProgressBar(pb, b)
     }
+
     return(list("H" = H_brr, "coefficients" = coef_brr))
 }

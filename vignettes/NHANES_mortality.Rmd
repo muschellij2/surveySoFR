@@ -24,24 +24,25 @@ The NHANES data described in the application section was pre-processed and store
 
 ```{r, message=FALSE, warning=FALSE}
 ## Check for packages needed to run analyses/install the rnhanesdata package.
-pckgs <- c("remotes","ggplot2","dplyr", "tidyr", 
-           "fields","refund","mgcv","surveySoFR")
-sapply(pckgs, function(x) if(!require(x,character.only=TRUE,quietly=TRUE)) {
-        install.packages(x)
-        require(x, character.only=TRUE)
-})
-rm(list=c("pckgs"))
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(fields)
+library(mgcv)
+library(surveySoFR)
+library(refund)
 ## Install the rnhanesdata package and dependencies.
 ## This may take a few minutes because of the size of the data package.
-if(!require("rnhanesdata")){
-        remotes::install_github("andrew-leroux/rnhanesdata",build_vignettes = FALSE)
-        require("rnhanesdata")
+if (!requireNamespace("rnhanesdata")) {
+    remotes::install_github("andrew-leroux/rnhanesdata",build_vignettes = FALSE)
+} else {
+    library(rnhanesdata)
 }
 ```
 
 After installing necessary R packages, we next extract NHANES data from the package and organize them into an analyzable format.
 
-```{r}
+```{r create_PAXINTEN, cache=TRUE}
 ## load activity count, wear/non-wear flag, demographic/lifestly, and mortality data
 data("PAXINTEN_C"); data("PAXINTEN_D")
 data("Flags_C"); data("Flags_D")
@@ -60,9 +61,9 @@ vars_covar <- c("Age","Gender","BMI_cat","Age","Cancer","Diabetes","CHD","CHF","
 PAXINTEN <- bind_rows(PAXINTEN_C, PAXINTEN_D)
 Flags    <- bind_rows(Flags_C, Flags_D)
 Covariate <- bind_rows(Covariate_C, Covariate_D) %>% 
-        mutate(Age = RIDAGEEX/12) %>% 
-        dplyr::select(SEQN, one_of(vars_covar),
-                      WTMEC2YR, WTINT2YR,SDMVPSU, SDMVSTRA) 
+    mutate(Age = RIDAGEEX/12) %>% 
+    dplyr::select(SEQN, one_of(vars_covar),
+                  WTMEC2YR, WTINT2YR,SDMVPSU, SDMVSTRA) 
 Mortality <- bind_rows(Mortality_2015_C, Mortality_2015_D)
 ## clear up the workspace
 rm(PAXINTEN_C, PAXINTEN_D, Flags_C, Flags_D, Covariate_C, Covariate_D, Mortality_2015_C, Mortality_2015_D)
@@ -71,73 +72,81 @@ rm(PAXINTEN_C, PAXINTEN_D, Flags_C, Flags_D, Covariate_C, Covariate_D, Mortality
 ## 2) subset to >= 3 days of good data
 PAXINTEN$nmins_wear <- rowSums(Flags[,paste0("MIN",1:1440)], na.rm=TRUE)
 PAXINTEN <- 
-        PAXINTEN %>% 
-        ## define a good day as >= 10 hours of wear + well calibrated devicve
-        mutate(good_day = as.numeric(nmins_wear >= 600 & PAXCAL %in% 1 & PAXSTAT %in% 1)) %>%
-        ## remove "bad" days
-        filter(good_day %in% 1) %>% 
-        dplyr::select(-PAXCAL, -PAXSTAT) %>% 
-        ## calculate subject specific number of good days
-        group_by(SEQN) %>% 
-        mutate(n_good_days = sum(good_day),
-               day = 1:n()) %>% 
-        ungroup() %>% 
-        ## only consider individuals with at least 3 days of good data
-        filter(n_good_days >= 3) %>%
-        mutate(dow_fac = factor(WEEKDAY, levels=1:7, labels=c("Sun","Mon","Tue","Wed","Thu","Fri","Sat"))) %>% 
-        left_join(Covariate, by="SEQN") %>% 
-        left_join(Mortality, by="SEQN") %>% 
-        arrange(SEQN, day) %>% 
-        drop_na(one_of(vars_covar)) %>% 
-        filter(!Cancer %in% "Don't know", !Diabetes %in% "Don't know", !CHD %in% "Don't know",
-               !CHF %in% "Don't know", !Stroke %in% "Don't know")
+    PAXINTEN %>% 
+    ## define a good day as >= 10 hours of wear + well calibrated devicve
+    mutate(good_day = as.numeric(nmins_wear >= 600 & PAXCAL %in% 1 & PAXSTAT %in% 1)) %>%
+    ## remove "bad" days
+    filter(good_day %in% 1) %>% 
+    dplyr::select(-PAXCAL, -PAXSTAT) %>% 
+    ## calculate subject specific number of good days
+    group_by(SEQN) %>% 
+    mutate(n_good_days = sum(good_day),
+           day = 1:n()) %>% 
+    ungroup() %>% 
+    ## only consider individuals with at least 3 days of good data
+    filter(n_good_days >= 3) %>%
+    mutate(dow_fac = factor(WEEKDAY, levels=1:7, labels=c("Sun","Mon","Tue","Wed","Thu","Fri","Sat"))) %>% 
+    left_join(Covariate, by="SEQN") %>% 
+    left_join(Mortality, by="SEQN") %>% 
+    arrange(SEQN, day) %>% 
+    drop_na(one_of(vars_covar)) %>% 
+    filter(!Cancer %in% "Don't know", !Diabetes %in% "Don't know", !CHD %in% "Don't know",
+           !CHF %in% "Don't know", !Stroke %in% "Don't know")
 rm(Flags, Covariate, Mortality)
+```
 
+
+```{r}
 ## Calculate PA profiles features
 NJ  <- nrow(PAXINTEN)
 uid <- unique(PAXINTEN$SEQN)
 nid <- length(uid)
 
 ## extract just activity counts
-X <- as.matrix(PAXINTEN[,paste0("MIN",1:1440)])
+X <- as.matrix(PAXINTEN[, paste0("MIN", 1:1440)])
 ## recode the few missing values as 0
 X[is.na(X)] <- 0
 ## get log activity counts and smooth via fpca
-lX    <- log(1+X)
-lX_sm <- fpca.face(lX, knots=50)$Yhat
+lX    <- log(1 + X)
+lX_sm <- refund::fpca.face(lX, knots = 50)$Yhat
 
 ## get subject specific average profiles
-inx_rows  <- split(1:NJ, factor(PAXINTEN$SEQN, levels=unique(PAXINTEN$SEQN)))
-lX_sm_avg <- t(vapply(inx_rows, function(x) colMeans(lX_sm[x,]), numeric(1440)))
+inx_rows  <- split(1:NJ, factor(PAXINTEN$SEQN, levels = unique(PAXINTEN$SEQN)))
+lX_sm_avg <- t(vapply(inx_rows, function(x)
+    colMeans(lX_sm[x, ]), numeric(1440)))
 
 ## create matrices for "time of day" and numeric integration via Riemann integration
-sind <- seq(0,1,len=1440)
+sind <- seq(0, 1, len = 1440)
 smat <- matrix(1, nid, 1) %x% matrix(sind, 1, 1440)
-lmat <- matrix(1/1440, nid, 1440)
+lmat <- matrix(1 / 1440, nid, 1440)
 
 ## get dataframe with one row per subejct,
 ## create indicator for 5-year mortality (Katia, I'm assuming this is what you want -- if not let me know)
-df_fit <- 
-        PAXINTEN %>% 
-        dplyr::select(-one_of(paste0("MIN",1:1440))) %>% 
-        group_by(SEQN) %>% 
-        slice(1) %>% 
-        ungroup() %>%
-        ## note that because we have at least 5-years of follow-up for everyone I don't worry 
-        ## about checking for that, but we do replace accidental deaths occuring within 5 years as "no event"
-        mutate(mortstat = replace(mortstat, (ucod_leading %in% "004") & (permth_exm/12 <= 5), 0),
-               mort_5yr = as.numeric(mortstat == 1 & (permth_exm/12 <= 5) ))  %>% 
-        ## remove columns which were associated with individual days
-        dplyr::select(-one_of(c("day","dow_fac","good_day","nmins_wear")))
+df_fit <-
+    PAXINTEN %>%
+    dplyr::select(-one_of(paste0("MIN", 1:1440))) %>%
+    group_by(SEQN) %>%
+    slice(1) %>%
+    ungroup() %>%
+    ## note that because we have at least 5-years of follow-up for everyone I don't worry
+    ## about checking for that, but we do replace accidental deaths occuring within 5 years as "no event"
+    mutate(mortstat = replace(mortstat, (ucod_leading %in% "004") &
+                                  (permth_exm / 12 <= 5), 0),
+           mort_5yr = as.numeric(mortstat == 1 &
+                                     (permth_exm / 12 <= 5)))  %>%
+    ## remove columns which were associated with individual days
+    dplyr::select(-one_of(c(
+        "day", "dow_fac", "good_day", "nmins_wear"
+    )))
 
 ## merge PA data into the dataframe
 df_fit$smat <- I(smat)                      # used for fitting FGLM (functional domain matrix)
 df_fit$lX_lmat <- I(lX_sm_avg * lmat)       # used for fitting FGLM (numeric integration times functional predictor)
 ## remove people under the age of 50, reweight
-df_fit <- 
-        df_fit %>% 
-        filter(Age >= 50, !is.na(mort_5yr)) %>% 
-        reweight_accel()
+df_fit <-
+    df_fit %>%
+    filter(Age >= 50, !is.na(mort_5yr)) %>%
+    reweight_accel()
 rm(lmat, smat, inx_rows, nid, uid, NJ, X, lX, lX_sm, lX_sm_avg)
 ```
 
@@ -150,17 +159,36 @@ We next compare the inference results using three approaches described in the pa
 ```{r, warning=FALSE, message=FALSE}
 ## create dataframe used for extracting predicted coefficient
 ns_pred <- 1000
-sind_pred <- seq(0,1,len=ns_pred)
-df_pred <-data.frame(lX_lmat=1, smat=sind_pred, df_fit[1,vars_covar])
+sind_pred <- seq(0, 1, len = ns_pred)
+df_pred <- data.frame(lX_lmat = 1, smat = sind_pred, df_fit[1, vars_covar])
 ## fit the functional generalized linear models (FGLM)
 kt_fglm       <- 30
-fit_SOFR_w <- gam(mort_5yr ~ Age + Gender + BMI_cat + Cancer + Diabetes + CHD + CHF + MobilityProblem + SmokeCigs + DrinkStatus + Stroke + 
-                          s(smat, by=lX_lmat, k=kt_fglm, bs="cc"), data=df_fit, family=binomial(), weights=wtmec4yr_adj_norm, method="REML")
-fit_SOFR_uw <- gam(mort_5yr ~  Age + Gender + BMI_cat + Cancer + Diabetes + CHD + CHF + MobilityProblem + SmokeCigs + DrinkStatus + Stroke + 
-                           s(smat, by=lX_lmat, k=kt_fglm, bs="cc"), data=df_fit, family=binomial(), method="REML")
+
+formula = mort_5yr ~  Age + Gender + BMI_cat + Cancer + Diabetes + CHD + 
+        CHF + MobilityProblem + SmokeCigs + DrinkStatus + Stroke +
+        s(smat, by = lX_lmat, k = kt_fglm, bs = "cc")
+fit_SOFR_w <- gam(
+    formula,
+    data = df_fit,
+    family = binomial(),
+    weights = wtmec4yr_adj_norm,
+    method = "REML"
+)
+fit_SOFR_uw <- gam(
+    formula,
+    data = df_fit,
+    family = binomial(),
+    method = "REML"
+)
 ## get the estimated coefficient plus intercept term: \beta_0 + \gamma(s)   for s \in [0,1]
-est_w  <- predict(fit_SOFR_w, newdata=df_pred, type='terms', se.fit=TRUE)
-est_uw <- predict(fit_SOFR_uw, newdata=df_pred, type='terms', se.fit=TRUE)
+est_w  <- predict(fit_SOFR_w,
+                  newdata = df_pred,
+                  type = 'terms',
+                  se.fit = TRUE)
+est_uw <- predict(fit_SOFR_uw,
+                  newdata = df_pred,
+                  type = 'terms',
+                  se.fit = TRUE)
 ```
 
 ### BRR
@@ -175,7 +203,7 @@ n_usp <- length(usp)
 ## get unique strata
 us   <- unique(df_fit$SDMVSTRA)
 n_us <- length(us)
-## get number of subjects 
+## get number of subjects
 N <- nrow(df_fit)
 
 ## set seed for reproducibility
@@ -185,10 +213,19 @@ df_fit$strata_PSU <- df_fit$STRATA_PSU
 df_fit$weights <- df_fit$wtmec4yr_unadj_norm
 
 ## get BRR estimated SEs
-fit <- doBRR(df=df_fit, fit=fit_SOFR_w, uPSU=1:2,us=29:58, nbrr=100, weights="weights",strata="SDMVSTRA",PSU="SDMVPSU")
-gamma_hat <- fit$coefficients[-c(1:17),-c(1:17)]
+fit <- doBRR(
+    df = df_fit,
+    fit = fit_SOFR_w,
+    uPSU = 1:2,
+    us = 29:58,
+    nbrr = 100,
+    weights = "weights",
+    strata = "SDMVSTRA",
+    PSU = "SDMVPSU"
+)
+gamma_hat <- fit$coefficients[-c(1:17), -c(1:17)]
 vG <- var(gamma_hat)
-Phi <- predict(fit_SOFR_w, newdata=df_pred, type='lpmatrix')[,-c(1:17)]
+Phi <- predict(fit_SOFR_w, newdata = df_pred, type = 'lpmatrix')[, -c(1:17)]
 vgamma_s <- Phi %*% vG %*% t(Phi)
 se_BRR_gamma <- sqrt(diag(vgamma_s))
 ```
@@ -201,16 +238,27 @@ nboot <- 100
 coef_mat_boot <- matrix(NA, nboot, ns_pred)
 # pb_boot <- txtProgressBar(min=0, max=nboot,style=3)
 inq_q_mat <- matrix(NA, nboot, dim(df_fit)[1])
-for(q in 1:nboot){
-        inx_q <- sample(1:dim(df_fit)[1], size=dim(df_fit)[1], prob=df_fit$wtmec4yr_adj_norm, replace=TRUE)
-        inq_q_mat[q,] <- inx_q
-        
-        df_fit_q <- df_fit[inx_q,]
-        fit_gnq <- gam(fit_SOFR_w$formula, family=binomial(),method="REML", data=df_fit_q)
-        coef_mat_boot[q,] <- predict(fit_gnq, newdata=df_pred, type="iterms")[,"s(smat):lX_lmat"]
-        # setTxtProgressBar(pb_boot, value=q)
+for (q in 1:nboot) {
+    inx_q <- sample(
+        1:dim(df_fit)[1],
+        size = dim(df_fit)[1],
+        prob = df_fit$wtmec4yr_adj_norm,
+        replace = TRUE
+    )
+    inq_q_mat[q, ] <- inx_q
+    
+    df_fit_q <- df_fit[inx_q, ]
+    fit_gnq <- gam(
+        fit_SOFR_w$formula,
+        family = binomial(),
+        method = "REML",
+        data = df_fit_q
+    )
+    coef_mat_boot[q, ] <- predict(fit_gnq, newdata = df_pred, type =
+                                      "iterms")[, "s(smat):lX_lmat"]
+    # setTxtProgressBar(pb_boot, value=q)
 }
-se_boot_gamma <- apply(coef_mat_boot, 2, sd, na.rm=TRUE)
+se_boot_gamma <- apply(coef_mat_boot, 2, sd, na.rm = TRUE)
 ```
 
 ## Results
@@ -220,38 +268,52 @@ After obtaining the standard error estimates using each method, we visualize the
 ```{r}
 ## point estimates of the functional coefficient and various SE estimates,
 ## combine into a dataframe in long format for plotting via ggplot
-df_plt <- 
-        data.frame("estimate" = c(rep(est_w$fit[,"s(smat):lX_lmat"], 3), est_uw$fit[,"s(smat):lX_lmat"]), 
-                   "se" = c(est_w$se.fit[,"s(smat):lX_lmat"], 
-                            se_BRR_gamma, 
-                            se_boot_gamma,
-                            est_uw$se.fit[,"s(smat):lX_lmat"]),
-                   "weighted" = c(rep("weighted", 3*ns_pred),
-                                  rep("unweighted", ns_pred)),
-                   "estimator" = c(rep("Fisher Information",ns_pred),
-                                   rep("BRR", ns_pred),
-                                   rep("Weighted Bootstrap", ns_pred), 
-                                   rep("Fisher Information", ns_pred)),
-                   "domain" = rep(sind_pred, 4)
-                   )
+df_plt <-
+    data.frame(
+        "estimate" = c(rep(est_w$fit[, "s(smat):lX_lmat"], 3), est_uw$fit[, "s(smat):lX_lmat"]),
+        "se" = c(est_w$se.fit[, "s(smat):lX_lmat"], se_BRR_gamma, se_boot_gamma, est_uw$se.fit[, "s(smat):lX_lmat"]),
+        "weighted" = c(rep("weighted", 3 * ns_pred), rep("unweighted", ns_pred)),
+        "estimator" = c(
+            rep("Fisher Information", ns_pred),
+            rep("BRR", ns_pred),
+            rep("Weighted Bootstrap", ns_pred),
+            rep("Fisher Information", ns_pred)
+        ),
+        "domain" = rep(sind_pred, 4)
+    )
 
-xinx <- (c(1,6,12,18,23)*60+1)/1440
-xinx_lab <- c("01:00","06:00","12:00","18:00","23:00")
-plt_1 <- 
-        df_plt %>% 
-        filter(weighted == "weighted") %>% 
-        mutate(LB = estimate - qnorm(0.975)*se,
-               UB = estimate + qnorm(0.975)*se) %>% 
-        ggplot() + 
-        geom_line(aes(x=domain, y=estimate), color="black") + 
-        geom_line(aes(x=domain, y=LB,color=estimator,lty=estimator)) + 
-        geom_line(aes(x=domain, y=UB,color=estimator,lty=estimator)) + 
-        theme_classic()  + 
-        geom_hline(yintercept=0, col='grey',lty=2,lwd=1) +
-        scale_x_continuous(breaks=xinx, labels=xinx_lab) + 
-        xlab("Time of Day (s)") + ggtitle("Estimated Functional Coefficient with 95% CIs") + 
-        ylab(expression(hat(gamma)(s) %+-% z[0.975] ~ SE(hat(gamma)(s)))) + 
-        theme(legend.position=c(0.5, 0.85)) + 
-        labs(color="SE Estimator", lty="SE Estimator")
+xinx <- (c(1, 6, 12, 18, 23) * 60 + 1) / 1440
+xinx_lab <- c("01:00", "06:00", "12:00", "18:00", "23:00")
+plt_1 <-
+    df_plt %>%
+    filter(weighted == "weighted") %>%
+    mutate(LB = estimate - qnorm(0.975) * se,
+           UB = estimate + qnorm(0.975) * se) %>%
+    ggplot() +
+    geom_line(aes(x = domain, y = estimate), color = "black") +
+    geom_line(aes(
+        x = domain,
+        y = LB,
+        color = estimator,
+        lty = estimator
+    )) +
+    geom_line(aes(
+        x = domain,
+        y = UB,
+        color = estimator,
+        lty = estimator
+    )) +
+    theme_classic()  +
+    geom_hline(
+        yintercept = 0,
+        col = 'grey',
+        lty = 2,
+        lwd = 1
+    ) +
+    scale_x_continuous(breaks = xinx, labels = xinx_lab) +
+    xlab("Time of Day (s)") + ggtitle("Estimated Functional Coefficient with 95% CIs") +
+    ylab(expression(hat(gamma)(s) %+-% z[0.975] ~ SE(hat(gamma)(s)))) +
+    theme(legend.position = c(0.5, 0.85)) +
+    labs(color = "SE Estimator", lty = "SE Estimator")
 plt_1
 ```
