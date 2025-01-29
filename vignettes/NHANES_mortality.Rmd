@@ -5,7 +5,7 @@ output:
     toc: yes
     theme: united
 vignette: >
-  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteIndexEntry{Data Application: NHANES 2003-2006}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -24,7 +24,8 @@ The NHANES data described in the application section was pre-processed and store
 
 ```{r, message=FALSE, warning=FALSE}
 ## Check for packages needed to run analyses/install the rnhanesdata package.
-pckgs <- c("devtools","ggplot2","tidyverse","fields","refund","mgcv","surveySoFR")
+pckgs <- c("remotes","ggplot2","dplyr", "tidyr", 
+           "fields","refund","mgcv","surveySoFR")
 sapply(pckgs, function(x) if(!require(x,character.only=TRUE,quietly=TRUE)) {
         install.packages(x)
         require(x, character.only=TRUE)
@@ -33,7 +34,7 @@ rm(list=c("pckgs"))
 ## Install the rnhanesdata package and dependencies.
 ## This may take a few minutes because of the size of the data package.
 if(!require("rnhanesdata")){
-        install_github("andrew-leroux/rnhanesdata",build_vignettes = FALSE)
+        remotes::install_github("andrew-leroux/rnhanesdata",build_vignettes = FALSE)
         require("rnhanesdata")
 }
 ```
