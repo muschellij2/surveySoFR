@@ -1,0 +1,45 @@
+structure(list(
+    smirnova2024scalar = structure(
+        list(
+            title = "Scalar-on-function regression: Estimation and inference under complex survey designs",
+            author = structure(list(
+                list(
+                    given = "Ekaterina",
+                    family = "Smirnova",
+                    role = NULL,
+                    email = NULL,
+                    comment = NULL
+                ),
+                list(
+                    given = "Erjia",
+                    family = "Cui",
+                    role = NULL,
+                    email = NULL,
+                    comment = NULL
+                ),
+                list(
+                    given = "Lucia",
+                    family = "Tabacu",
+                    role = NULL,
+                    email = NULL,
+                    comment = NULL
+                ),
+                list(
+                    given = "Andrew",
+                    family = "Leroux",
+                    role = NULL,
+                    email = NULL,
+                    comment = NULL
+                )
+            ), class = "person"),
+            journal = "Statistics in Medicine",
+            volume = "43",
+            number = "23",
+            pages = "4559--4574",
+            year = "2024",
+            publisher = "Wiley Online Library"
+        ),
+        bibtype = "Article",
+        key = "smirnova2024scalar"
+    )
+), class = "bibentry")
