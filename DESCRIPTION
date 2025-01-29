@@ -15,9 +15,12 @@ Suggests:
     rmarkdown,
     knitr,
     refund,
-    devtools,
+    remotes,
     ggplot2,
     dplyr,
     tidyr,
-    fields
+    fields,
+    rnhanesdata
+Remotes:
+    andrew-leroux/rnhanesdata
 VignetteBuilder: knitr
